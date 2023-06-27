@@ -3,22 +3,196 @@
 version: 2.1
 
 executors:
-  my-custom-executor:
+  circle-ci-node-18: &circle-ci-node-18
     docker:
-      - image: cimg/base:stable
-        auth:
-          # ensure you have first added these secrets
-          # visit app.circleci.com/settings/project/github/replayio-public/repro-getsafe/environment-variables
-          username: $DOCKER_HUB_USER
-          password: $DOCKER_HUB_PASSWORD
+      - image: cimg/node:18.4.0-browsers
+    resource_class: large
+aliases:
+  # - &restore-node-cache
+  #   name: Restore Yarn Package Cache
+  #   keys:
+  #     - v{{ .Environment.CACHE_VERSION }}-dependencies-{{ checksum "yarn.lock" }}
+  # - &save-node-cache
+  #   name: Save Yarn Package Cache
+  #   key: v{{ .Environment.CACHE_VERSION }}-dependencies-{{ checksum "yarn.lock" }}
+  #   paths:
+  #     - node_modules/
+  - &install-node-dependencies
+    name: Install node_modules
+    command: yarn install --frozen-lockfile
+  - &authenticate-github-registry
+    name: Authenticate in Github registry
+    command: npm config set "//npm.pkg.github.com/:_authToken" "${GITHUB_PACKAGES_TOKEN}"
+
 jobs:
-  my-job-name:
-    executor: my-custom-executor
+  main:
+    <<: *circle-ci-node-18
+    steps:
+      - run: echo "This is main"
+  prepare_workspace:
+    <<: *circle-ci-node-18
     steps:
       - checkout
-      - run: |
-          # echo Hello, World!
+      # - restore_cache:
+      #     <<: *restore-node-cache
+      - run:
+          <<: *authenticate-github-registry
+      - run:
+          <<: *install-node-dependencies
+      # - save_cache:
+      #     <<: *save-node-cache
+      - persist_to_workspace:
+          paths:
+            - project
+          root: /home/circleci/
+  # test-linters:
+  #   <<: *circle-ci-node-18
+  #   steps:
+  #     - attach_workspace:
+  #         at: /home/circleci
+  #     - run: yarn lint
+
+  # test-jest:
+  #   <<: *circle-ci-node-18
+  #   parallelism: 10
+  #   steps:
+  #     - attach_workspace:
+  #         at: /home/circleci
+  #     - run: mkdir ~/junit
+  #     # circleci uses junit to split tests based on timing so that in the future all executors can finish almost at the same time
+  #     - run:
+  #         # We set TEST to the value of the test splitting by circleci and use it in the detox command
+  #         command: |
+  #           TEST=$(circleci tests glob "{src,tools}/**/__{tests,test}__/**/*.{ts,tsx}" "{src,tools}/**/?(*.)+(spec|test).{ts,tsx}" | circleci tests split --split-by=timings)
+  #           NODE_ENV=test yarn jest $TEST --ci --runInBand --reporters=default --reporters=jest-junit
+  #         name: Split and run tests
+  #     - run:
+  #         command: cp junit.xml ~/junit/
+  #         when: always
+  #     - store_test_results:
+  #         path: ~/junit
+  #     - store_artifacts:
+  #         path: ~/junit
+  build:
+    <<: *circle-ci-node-18
+    resource_class: large
+    steps:
+      - attach_workspace:
+          at: /home/circleci
+
+      - run:
+          command: NODE_ENV=development yarn build
+          name: Build
+
+      - run:
+          name: Create E2E UUID
+          command: echo "$(npx uuid)" > /home/circleci/run_uuid
+
+      - persist_to_workspace:
+          paths:
+            - project
+            - run_uuid
+          root: /home/circleci/
+  run_e2e:
+    <<: *circle-ci-node-18
+    resource_class: large
+    parallelism: 10
+    steps:
+      - attach_workspace:
+          at: /home/circleci
+
+      - run: mkdir ~/junit
+
+      # - run:
+      #     background: true
+      #     command: yarn serve static/ --single --cors -l 3000
+      #     name: Start Server
+
+      - run:
+          name: Install cypress binary
+          command: |
+            yarn cypress install 
+            npx @replayio/cypress install
+
+      - run:
+          name: Run E2E Tests
+          command: npx @replayio/cypress run --browser=replay-firefox
+          environment:
+            RECORD_ALL_CONTENT: 1
+            RECORD_REPLAY_METADATA_FILE: /tmp/replay-metadata
+      # - run:
+      #     name: Run E2E Tests
+      #     command: |
+      #       TEST=$(circleci tests glob "cypress/e2e/**/*.{js,ts,tsx}" | circleci tests split --split-by=timings)
+      #       RECORD_REPLAY_METADATA_TEST_RUN_ID="$(cat /home/circleci/run_uuid)" npx @replayio/cypress run \
+      #       --mode record-on-retry --browser=replay-chromium \
+      #       --reporter junit --reporter-options "mochaFile=junit.xml,toConsole=true" \
+      #       --spec $TEST
+      #     environment:
+      #       RECORD_ALL_CONTENT: 1
+      #       RECORD_REPLAY_METADATA_FILE: /tmp/replay-metadata
+
+      # - run:
+      #     name: "Upload to Replay"
+      #     when: always
+      #     command: |
+      #       export RECORD_REPLAY_METADATA_TEST_RUN_ID="$(cat /home/circleci/run_uuid)"
+      #       export RECORD_REPLAY_METADATA_SOURCE_COMMIT_TITLE="$(git log --format=%s -n 1)"
+      #       export GITHUB_TOKEN="${REPLAY_GITHUB_TOKEN}"
+      #       npx @replayio/replay metadata --init --keys source --warn
+      #       npx @replayio/replay ls
+      #       npx @replayio/replay upload-all --api-key $RECORD_REPLAY_API_KEY
+      #     environment:
+      #       RECORD_REPLAY_METADATA_FILE: /tmp/replay-metadata
+
+      # - run:
+      #     command: cp junit.xml ~/junit/
+      #     when: always
+      # - store_test_results:
+      #     path: ~/junit
+      # - store_artifacts:
+      #     path: ~/junit
+
 workflows:
-  my-custom-workflow:
+  version: 2
+  #   test-smoke:
+  #     jobs:
+  #       - prepare_workspace:
+  #           context: github-registry
+  #       - test-linters:
+  #           requires:
+  #             - prepare_workspace
+  #           context:
+  #             - github-registry
+  #       - test-jest:
+  #           requires:
+  #             - prepare_workspace
+  #           context:
+  #             - github-registry
+
+  test-e2e:
     jobs:
-      - my-job-name
+      - prepare_workspace:
+          context: github-registry
+          requires:
+            - hold
+            - main
+      - hold:
+          type: approval
+          filters:
+            branches:
+              ignore: main
+      - main:
+          filters:
+            branches:
+              only: main
+      - build:
+          requires:
+            - prepare_workspace
+          context:
+            - github-registry
+      - run_e2e:
+          requires:
+            - build
+          context:
+            - github-registry
