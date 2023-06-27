@@ -1,13 +1,21 @@
 /// <reference types="cypress" />
 
+const locators = ['.todo-list li', '.todo-list li']
+
 describe('example to-do app', () => {
   beforeEach(() => {
     cy.visit('https://example.cypress.io/todo')
   })
 
-  it('displays two todo items by default', () => {
-    cy.get('.todo-list li').should('have.length', 2)
-    cy.get('.todo-list li').first().should('have.text', 'Pay electric bill')
-    cy.get('.todo-list li').last().should('have.text', 'Walk the dog')
+  locators.forEach((locator, index) => {
+    runTest(locator, index);
   })
 })
+
+function runTest(locator, index) {
+  it(`displays two todo items by default ${index}`, () => {
+    cy.get(locator).should('have.length', 2)
+    cy.get(locator).first().should('have.text', 'Pay electric bill')
+    cy.get(locator).last().should('have.text', 'Walk the dog')
+  })
+}
