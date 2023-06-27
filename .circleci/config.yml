@@ -114,23 +114,22 @@ jobs:
             yarn cypress install 
             npx @replayio/cypress install
 
-      - run:
-          name: Run E2E Tests
-          command: npx @replayio/cypress run --browser=replay-firefox
-          environment:
-            RECORD_ALL_CONTENT: 1
-            RECORD_REPLAY_METADATA_FILE: /tmp/replay-metadata
       # - run:
       #     name: Run E2E Tests
-      #     command: |
-      #       TEST=$(circleci tests glob "cypress/e2e/**/*.{js,ts,tsx}" | circleci tests split --split-by=timings)
-      #       RECORD_REPLAY_METADATA_TEST_RUN_ID="$(cat /home/circleci/run_uuid)" npx @replayio/cypress run \
-      #       --mode record-on-retry --browser=replay-chromium \
-      #       --reporter junit --reporter-options "mochaFile=junit.xml,toConsole=true" \
-      #       --spec $TEST
+      #     command: npx @replayio/cypress run --browser=replay-chromium
       #     environment:
       #       RECORD_ALL_CONTENT: 1
       #       RECORD_REPLAY_METADATA_FILE: /tmp/replay-metadata
+      - run:
+          name: Run E2E Tests
+          command: |
+            TEST=$(circleci tests glob "cypress/e2e/**/*.{js,ts,tsx}" | circleci tests split --split-by=timings)
+            RECORD_REPLAY_METADATA_TEST_RUN_ID="$(cat /home/circleci/run_uuid)" npx @replayio/cypress run \
+            --browser=replay-chromium \
+            --reporter junit --reporter-options "mochaFile=junit.xml,toConsole=true" \
+          environment:
+            RECORD_ALL_CONTENT: 1
+            RECORD_REPLAY_METADATA_FILE: /tmp/replay-metadata
 
       # - run:
       #     name: "Upload to Replay"
