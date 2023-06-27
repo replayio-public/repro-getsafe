@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/replayio-public/repro-getsafe#readme",
   "devDependencies": {
+    "@replayio/cypress": "^1.0.4",
     "cypress": "^12.16.0"
   }
 }
