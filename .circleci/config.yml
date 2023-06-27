@@ -125,11 +125,16 @@ jobs:
           command: |
             TEST=$(circleci tests glob "cypress/e2e/**/*.{js,ts,tsx}" | circleci tests split --split-by=timings)
             RECORD_REPLAY_METADATA_TEST_RUN_ID="$(cat /home/circleci/run_uuid)" npx @replayio/cypress run \
-            --browser=replay-chromium \
+            --mode record-on-retry --browser=replay-chromium \
             --reporter junit --reporter-options "mochaFile=junit.xml,toConsole=true" \
           environment:
             RECORD_ALL_CONTENT: 1
             RECORD_REPLAY_METADATA_FILE: /tmp/replay-metadata
+
+      - run:
+          name: Check replay recorded
+          when: always
+          command: npx @replayio/replay ls
 
       # - run:
       #     name: "Upload to Replay"
