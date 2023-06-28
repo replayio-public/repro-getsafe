@@ -16,6 +16,8 @@ function runTest(locator, index) {
   it(`displays two todo items by default ${index}`, () => {
     cy.get(locator).should('have.length', 2)
     cy.get(locator).first().should('have.text', 'Pay electric bill')
-    cy.get(locator).last().should('have.text', 'Walk the dog')
+    // make it fail
+    cy.get(locator).last().should('have.text', 'Walk the cat')
+    // cy.get(locator).last().should('have.text', 'Walk the dog')
   })
 }
